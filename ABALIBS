@@ -1,0 +1,624 @@
+#!/usr/bin/env bash
+# Authur : Salar Muhammadi BALIS ( Blanck Arch Linux Installation Script )
+# Global VARIABLES #
+# Top Info
+declare -r DESC='Automation Blanck Arch Linux Installation Bash Script';
+declare -r TITLE='ABALIBS ';
+declare -r Authurfn='Salar';
+declare -r Authurln='Muhammadi';
+# MAIN Vars
+declare -i COLs=$( tput cols );
+declare -i ROWs=$( tput lines );
+declare -i EXIT=0;
+declare -r StartTime=`date`;
+declare DIR;
+declare -r ConfigDir="config";
+declare -r Logf="$ConfigDir/log.log";
+declare -r Logh="$ConfigDir/log.his";
+# Network Info
+declare -i ONLINE=0;
+declare -r CfgNetDir="$ConfigDir/net";
+declare -r nted="$CfgNetDir/ethernet";
+declare -r ntwd="$CfgNetDir/wireless";
+# Installation Information
+declare BIOSMODE;
+declare HostName='blanckarch';
+declare rootpw='toor';
+declare username='blanck';
+declare upw='blanck';
+# Global VARIABLES #
+###
+## FUNCTIONS ##
+################################################################################################################################################################################
+SGR () {
+local -r RSGR='\e[0m'; # Reset
+local -r BOLD='\e[1m'; #Bold
+local -r FAINT='\e[2m'; #Faint
+local -r ITALIC='\e[3m'; #Italic
+local -r UNDERLINE='\e[4m'; #Underline
+local -r SBLINK='\e[5m'; # Slow Blink
+local -r RBLINK='\e[6m'; # Fast Blink
+local -r INVERT='\e[7m'; # Invert
+local -r HIDE='\e[8m'; #Hidden
+local -r STRIKE='\e[9m'; # Strikethrough
+local -r PFONT='\e[10m'; # Primary Font
+local -r GOTHIC='\e[20m'; # Gothic Font
+local -r DUNDER='\e[21m'; # Double Underline
+local -r NORMINTENS='\e[22m'; # Normal Intense
+local -r NOTIT='\e[23m'; # Not Italic
+local -r NOTUNDER='\e[24m'; # Not Underline
+local -r NOTBLINK='\e[24m'; # Not Blink
+local -r NOTINVERT='\e[27m'; # Not Invert
+local -r NOTSTRIKE='\e[29m'; # Not StrikeThrough
+local -r SUPERS='\e[73m'; # Super Script
+local -r SUBS='\e[74m'; # Sub Script
+local -r NOTSS='\e[75m'; # Not Sub or Super Script
+printf "${!1}";
+}
+###############################################################################################################################################################################
+ChColors () {
+local -r BBLACK='\e[40m';
+local -r FBLACK='\e[30m';
+local -r BWHITE='\e[47m';
+local -r FWHITE='\e[37m';
+local -r SUCCESS='\e[97;42m';
+local -r FAILED='\e[91;41m';
+local -r WAIT='\e[44;95m';
+local -r YNQ='\e[1;93;40m';
+local -r MENU='\e[1;96;40m';
+local -r MENUQ='\e[1;94;100m';
+local -r TITL='\e[1;34;40m';
+local -r DSC='\e[1;36;40m';
+local -r AUTH='\e[1;97;46m';
+local -r CMNT='\e[40;97m';
+printf "${!1}";
+}
+################################################################################################################################################################################
+SOURCEDIR () {
+SOURCE="${BASH_SOURCE[0]}";
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+	DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )";
+	SOURCE="$(readlink "$SOURCE")";
+	[[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"; # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )";
+cd "$DIR";
+}
+##############################################################################################################################################################################
+# Bootstrapper Dialog
+bootDialog () {
+DIALOG_RESULT=$(dialog --clear --stdout --backtitle "BlanckArch Installation" "$@" 2>/dev/null);
+}
+#############################################################################################################################################################################
+# Typing Word Function
+# ARGs [Req:Input] [Opt:Delay]
+Typing () {
+[[ $# -lt 1 ]] && echo 'Input String is Required!' && return 1;
+local -r Input="$1";
+local Delay=0;
+[[ $# -gt 1 ]] && Delay=$2;
+local -i -r InpLen=${#Input};
+sleep $Delay;
+for (( c=0; c<$InpLen; c++ ));
+do
+	echo -n ${Input:$c:1};
+	sleep $Delay;
+done;
+}
+#####################################################################################################################################################################################
+# Typing String Function
+# ARGs [Req:Input String] [Opt:Delay]
+TypingS () {
+[[ $# -lt 1 ]] && echo 'Input String is Required!' && return 1;
+local -r string="$1";
+local Delay=0;
+[[ $# -gt 1 ]] && Delay="$2";
+for word in $string;
+do
+	Typing "$word" $Delay;
+	echo -n ' ';
+	sleep $Delay;
+done;
+}
+######################################################################################################################################################################################
+# PLZ WAIT
+# ARGs [Opt:Delay{Seconds}]
+Plzw8 () {
+ChColors WAIT;
+DispMsg "Please Wait ...";
+local -i sl=1;
+local -i Delay=1;
+[[ $# -gt 0 && $1 -gt 1 ]] && Delay="$1";
+local -i W8=$(( $Delay * 3 ));
+for (( c=$W8; c>0; c-- ));
+do
+	if [[ $sl -eq 1 ]];
+	then
+		echo -n '\' & sl=0;
+	else
+		echo -n "/" & sl=1;
+	fi;
+	echo -e -n "\b";
+	sleep 0.333;
+done;
+SGR RSGR;
+echo;
+}
+####################################################################################################################################################################################
+# Repeat Char Function
+# ARGs [Req:Input] [Req:Count]
+RepChar () {
+[[ $# -lt 1 ]] && echo 'Input String is Required!' && return 1 || [[ $# -lt 2 ]] && echo 'Repeat Count is Required!' && return 2;
+local -r input="$1";
+local -i -r count="$2";
+printf -v RStr "%${count}s";
+echo -n -e ${RStr// /$input};
+}
+#################################################################################################################################################################################
+# Delay Print Function
+#ARGs [Req:Input] [Opt:Count{1-100}] [Opt:Delay{Seconds}]
+DelP () {
+local input;
+local -i count=1;
+local Delay=1;
+[[ $# -lt 1 ]] && echo 'Input String is Required!' && return 1 || [[ $# -eq 2 ]] && Delay=$2 || [[ $# -gt 2 ]] && [[ $2 =~ ^[[:digit:]]+$ ]] && [[ $2 -gt 0 && $2 -lt 101 ]] && count=$2 || [[ $2 -gt 2 ]] && Delay=$3;
+input=$1;
+for (( c=1; $c<=$count; c++ ));
+do
+	echo "$input";
+	sleep $Delay;
+done;
+}
+##################################################################################################################################################################################
+# Display Message
+# ARGs [Req:Input Message]
+DispMsg () {
+local -r MSG="$1";
+echo -e "\n";
+Typing "=============>>" 0.00123;
+echo -n ' ';
+TypingS "$MSG" 0.00123;
+sleep 0.00123;
+}
+###################################################################################################################################################################################
+# Yes Or No Request
+# ARGs [Req: Message] [Opt:Default{0 or 1}]
+YNReq () {
+local -r req="$1";
+local -i def=1;
+local reqdef="(Y/n)";
+[[ $# -gt 1 && $2 -eq 0 ]] && reqdef="(y/N)" && def=0;
+ChColors YNQ;
+DispMsg "$req $reqdef =>>>";
+SGR RSGR;
+read ians;
+[[ "$ians" = "y" || "$ians" = "Y" ]] && return 1 || [[ "$ians" = "n" || "$ians" = "N" ]] && return 0 || return $def;
+}
+#####################################################################################################################################################################################
+# Selection Menu
+# ARGs [Req:Menu Title] [Req:Menu Items Count] [Req:Menu Items Array] [Opt:Menu Default Index]
+SMenu () {
+DispInfo;
+local -a argv=("${@}");
+local -r mtitle="${argv[0]}";
+local -i -r mic="${argv[1]}";
+local defi=0;
+local -a mitems;
+ChColors MENU;
+DispMsg "$mtitle Menu";
+echo;
+DispMsg "$(RepChar '=' $(( ${#mtitle} + 6 )) )";
+SGR INVERT;
+echo;
+if [[ $# -ge 3 && $mic -gt 0 ]];
+then
+	mitems=("${argv[@]:2:$mic}");
+	if [[ $(( $# - 2 )) -gt $mic ]];
+	then
+		argdef="${argv[($mic+2)]}";
+		[[ "$argdef" =~ ^[[:digit:]]+$ ]] && [[ $argdef -le $mic ]] && defi=$argdef || defi=1;
+	else
+		defi=1;
+	fi;
+	for (( i=0; i<$mic; i++ ));
+	do
+		ii=$(( i+1 ));
+		DispMsg "(==< $ii >==) ${mitems[$i]} ";
+		[[ $ii -eq $defi ]] && echo -n "(Default)";
+	done;
+fi;
+DispMsg "(==< 0 >==) Exit";
+[[ $defi -eq 0 ]] && echo -n "(Default)";
+echo;
+SGR NOTINVERT;
+ChColors MENUQ;
+DispMsg "Choose an Option and hit the Enter =>>>";
+SGR RSGR;
+read op;
+[[ $op =~ ^[[:digit:]]+$ ]] && [[ $op -le "$mic" && $op -ge 0 ]] && return $op || return $defi;
+}
+###################################################################################################################################################################################
+# Display Top Banner
+# ARGs [Opt:DelayOn]
+DispInfo () {
+clear;
+COLs=$( tput cols );
+ROWs=$( tput lines );
+local LRD=0;
+local DesC=0;
+local AuthD=0;
+[[ $# -gt 0 ]] && LRD=0.0444 && DesC=0.0333 && AuthD=0.1333;
+local -i -r repp=$(( COLs / ${#TITLE} ));
+ChColors TITL;
+DelP "$(RepChar "$TITLE" $repp)" $(( repp / 3 )) $LRD;
+echo -e -n "$TITLE\n$TITLE\n$TITLE\t\t";
+Typing "========>" $DesC;
+echo -n " ";
+ChColors DSC;
+TypingS "$DESC" $DesC;
+ChColors TITL;
+Typing " <========" $DesC;
+echo -e -n "\n$TITLE\n$TITLE\t\t\t\t";
+echo -e -n "Authur : ";
+ChColors AUTH;
+Typing "$Authurfn" $AuthD;
+echo -n " ";
+Typing "$Authurln" $LRD;
+ChColors TITL;
+echo -n -e "\n$TITLE\n$TITLE\n";
+DelP "$( RepChar "$TITLE" $repp )" $(( repp / 3 )) $LRD;
+SGR RSGR;
+}
+####################################################################################################################################################################################
+# Select Network Type
+SNT () {
+local -a nta=( "Ethernet" "Wireless" );
+local -i SNTE=0;
+local -i nt=0;
+local -i def=1;
+while [ $SNTE -eq 0 ];
+do
+	[[ -f "$CfgNetDir/nt.tmp" ]] && def=`cat $CfgNetDir/nt.tmp` || def=1;
+	SMenu 'Network Type' ${#nta[@]} "${nta[@]}" $def 2> /dev/null;
+	nt=$?;
+	if [[ $nt -eq 0 ]];
+	then
+		SNTE=666;
+	else
+		echo "$nt" > "$CfgNetDir/nt.tmp";
+		SNI $nt;
+		local -i ni=$?;
+		! [[ $ni -eq 0 ]] && SNTE=1;
+	fi;
+done;
+return $nt;
+}
+###################################################################################################################################################################################
+# Select Network Interface
+# ARGs [Req: Network Type { 1 : Ethernet , 2 : Wireless }]
+SNI () {
+[[ ! -d $nted ]] && mkdir $nted;
+[[ ! -d $ntwd ]] && mkdir $ntwd;
+local -i -r nt="$1";
+local -a interf;
+local -a -r allif=$( ls /sys/class/net );
+local -i ni=0;
+if [[ $nt -eq 1 ]];
+then
+	for eif in ${allif[@]};
+	do
+		[[ "$eif" == *eth* || "$eif" == *en* ]] && interf+=( "$eif" ) && [[ ! -d "$nted/$eif" ]] && mkdir "$nted/$eif";
+	done;
+elif [[ $nt -eq 2 ]];
+then
+	for wif in ${allif[@]};
+	do
+		[[ "$wif" == *wl* ]] && interf+=( "$wif" ) && [[ ! -d "$ntwd/$wif" ]] && mkdir "$ntwd/$wif";
+	done;
+fi;
+local -i SNIE=0;
+local -i def=1;
+while [ $SNIE -eq 0 ];
+do
+	[[ -f "$CfgNetDir/ni.tmp" ]] && def=`cat $CfgNetDir/ni.tmp` || def=1;
+	SMenu 'Network Interface' ${#interf[@]} "${interf[@]}" $def 2> /dev/null;
+	ni=$?;
+	if [[ $ni -eq 0 ]];
+	then
+		SNIE=666;
+	else
+		echo "$ni" > "$CfgNetDir/ni.tmp";
+		SIT;
+		local -i -r it=$?;
+		if ! [[ $it -eq 0 ]];
+		then
+			SNIE=1;
+		fi;
+	fi;
+done;
+return $ni;
+}
+###################################################################################################################################################################################
+# Select ip Type
+SIT () {
+local -i SITE=0;
+local -a ita=( "Static" "DHCP" );
+local -i it=0;
+local -i def=2;
+while [ $SITE -eq 0 ];
+do
+	[[ -f "$CfgNetDir/it.tmp" ]] && def=`cat $CfgNetDir/it.tmp` || def=2;
+	SMenu  'IP Type' ${#ita[@]} "${ita[@]}" $def 2> /dev/null;
+	it=$?;
+	if [[ $it -eq 0 ]];
+	then
+		SITE=666;
+	else
+		echo "$it" > "$CfgNetDir/it.tmp";
+		if [[ $it -eq 2 ]];
+		then
+			`sudo dhclient`;
+			SITE=2;
+		elif [[ $it -eq 1 ]];
+		then
+			ISC;
+		fi;
+	fi;
+done;
+return $it;
+}
+#######################################################################################################################
+# IP Static Config
+ISC () {
+return 0;
+}
+######################################################################################################################
+# IP Validation
+IPV () {
+local -r ip="$1";
+local -r IPReg="([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])";
+local -r IPRegex="^($IPReg\.){3}$IPReg$";
+[[ $ip =~ $IPRegex ]] && return 111 || return 0;
+}
+######################################################################################################################
+# Subnet Mask Validation
+SMV () {
+local -r subnet="$1";
+## Subnet Mask Validation Conditions and Return Prefix
+if [[ $subnet =~ ^(255\.) ]];
+then
+	if [[ $subnet =~ ^(255\.){2} ]];
+	then
+		if [[ $subnet =~ ^(255\.){3} ]];
+		then
+			if [[ $subnet =~  ^(255\.){3}0$ ]];
+			then
+				return 24;
+			elif [[ $subnet =~ ^(255\.){3}255$ ]];
+			then
+				return 32;
+			elif [[ $subnet =~  ^(255\.){3}254$ ]];
+			then
+				return 31;
+			elif [[ $subnet =~  ^(255\.){3}252$ ]];
+			then
+				return 30;
+			elif [[ $subnet =~  ^(255\.){3}248$ ]];
+			then
+				return 29;
+			elif [[ $subnet =~  ^(255\.){3}240$ ]];
+			then
+				return 28;
+			elif [[ $subnet =~  ^(255\.){3}224$ ]];
+			then
+				return 27;
+			elif [[ $subnet =~  ^(255\.){3}192$ ]];
+			then
+				return 26;
+			elif [[ $subnet =~  ^(255\.){3}128$ ]];
+			then
+				return 25;
+			else
+				return 0;
+			fi;
+		elif [[ $subnet =~ ^(255\.){2}0\.0$ ]];
+		then
+			return 16;
+		elif [[ $subnet =~ ^(255\.){2}254\.0$ ]];
+		then
+			return 23;
+		elif [[ $subnet =~ ^(255\.){2}252\.0$ ]];
+		then
+			return 22;
+		elif [[ $subnet =~ ^(255\.){2}248\.0$ ]];
+		then
+			return 21;
+		elif [[ $subnet =~ ^(255\.){2}240\.0$ ]];
+		then
+			return 20;
+		elif [[ $subnet =~ ^(255\.){2}224\.0$ ]];
+		then
+			return 19;
+		elif [[ $subnet =~ ^(255\.){2}192\.0$ ]];
+		then
+			return 18;
+		elif [[ $subnet =~ ^(255\.){2}128\.0$ ]];
+		then
+			return 17;
+		else
+			return 0;
+		fi;
+	elif [[ $subnet =~ ^255\.0\.0\.0$ ]];
+	then
+		return 8;
+	elif [[ $subnet =~ ^255\.254\.0\.0$ ]];
+	then
+		return 15;
+	elif [[ $subnet =~ ^255\.252\.0\.0$ ]];
+	then
+		return 14;
+	elif [[ $subnet =~ ^255\.248\.0\.0$ ]];
+	then
+		return 13;
+	elif [[ $subnet =~ ^255\.240\.0\.0$ ]];
+	then
+		return 12;
+	elif [[ $subnet =~ ^255\.224\.0\.0$ ]];
+	then
+		return 11;
+	elif [[ $subnet =~ ^255\.192\.0\.0$ ]];
+	then
+		return 10;
+	elif [[ $subnet =~ ^255\.128\.0\.0$ ]];
+	then
+		return 9;
+	else
+		return 0;
+	fi;
+elif [[ $subnet =~ ^254\.0\.0\.0$ ]];
+then
+	return 7;
+elif [[ $subnet =~ ^252\.0\.0\.0$ ]];
+then
+	return 6;
+elif [[ $subnet =~ ^248\.0\.0\.0$ ]];
+then
+	return 5;
+elif [[ $subnet =~ ^240\.0\.0\.0$ ]];
+then
+	return 4;
+elif [[ $subnet =~ ^224\.0\.0\.0$ ]];
+then
+	return 3;
+elif [[ $subnet =~ ^192\.0\.0\.0$ ]];
+then
+	return 2;
+elif [[ $subnet =~ ^128\.0\.0\.0$ ]];
+then
+	return 1;
+else
+	return 0;
+fi;
+}
+############################################################################################################################
+# Select Static Options
+SSO () {
+local IP="$1";
+local SubMask="$2";
+local -i SubPrefix;
+local DefGate="$3";
+local NameServer="$4":
+IPV $IP;
+if [[ $? -eq 111 ]];
+then
+	SMV $SubMask;
+	SubPrefix=$?;
+	[[ $SubPrefix -eq 0 ]] && echo "$IP/$SubPrefix" || echo "NotValid Subnet Mask!";
+else
+	echo "NotValid IP Address!";
+fi;
+}
+###################################################################################################################################################################################
+# Config Network
+CfgNet () {
+[[ ! -d "$CfgNetDir" ]] && mkdir $CfgNetDir;
+[[ ! -f "$ntf" ]] && touch "$ntf";
+local -i nt;
+local -i ni;
+local -i it;
+local IP;
+local SubMask;
+local SubPrefix;
+local DefGate;
+local NameServer;
+local AltDNS;
+local DomainName;
+echo "Start Network Configuration At : `date`" >> $Logf;
+SNT;
+nt=$?;
+#
+return 666;
+}
+####################################################################################################################################################################################
+# Check Internet Connection
+pingGo () {
+local -i Conn=0;
+local -i status=0;
+while [ $Conn -eq 0 ];
+do
+	ChColors CMNT;
+	DispMsg "Let's Check the internet Connection..." && echo "Check Connection At : `date`" >> $Logf;
+	SGR RSGR;
+	echo;
+	Plzw8 1;
+	nc -z google.com 443 >/dev/null 2>&1;
+	status=$?;
+	if [[ $status -eq 0 ]];
+	then
+		ChColors SUCCESS;
+		DispMsg "Network is Online";
+		SGR RSGR;
+		echo "==> Connection Online!" >> $Logf;
+		Conn=1;
+		ONLINE=1;
+	else
+		ChColors FAILED;
+		ONLINE=0;
+		DispMsg "Network is Offline";
+		SGR RSGR;
+		echo "==> Connection Offline!" >> $Logf;
+		YNReq "This Script Needs internet Connection. Do you want to Retry?" && break;
+		! YNReq "Do you want to config the network?" && CfgNet;
+	fi;
+done;
+return $status;
+}
+#######################################################################################################################################################################################
+GatherInfo () {
+# UEFI / BIOS Detection
+efivar -l >/dev/null 2>&1;
+[[ $? -eq 0 ]] && BIOSMODE=0 || BIOSMODE=1;
+# GET Hostname
+bootDialog --title "Hostname" --inputbox "Please Enter the HOST name.\n" $(( $ROWs / 2 )) $(( $COLs / 2)) || exit 1;
+HostName=$DIALOG_RESULT;
+clear;
+bootDialog --title "ROOT PASSWORD" --inputbox "Please Enter the ROOT Password." $(( $ROWs / 2 )) $(( $COLs / 2 )) || exit 1;
+rootpw=$DIALOG_RESULT;
+clear;
+
+}
+#######################################################################################################################################################################################
+# Start Installaion
+StartInstall () {
+bootDialog --title "Welcome" --msgbox "Welcome To Blanck Arch Linux Bootstrapper Installer.\n" $(( $ROWs / 2 )) $(( $COLs / 2 ));
+GatherInfo;
+}
+#######################################################################################################################################################################################
+# Connect to Wifi CTW () {} Select Wireless Interface SWI () { }
+###### MAIN ######
+MAIN () {
+SOURCEDIR;
+#Start Application
+echo "$StartTime";
+[[ ! -d $ConfigDir ]] && mkdir $ConfigDir;
+echo "+" > $Logf;
+echo "Application Started At : $StartTime" >> $Logf;
+while [ $EXIT -eq 0 ];
+do
+	# Banner First Display
+	sleep 0.333;
+	DispInfo 1;
+	# Lets Check Internet Connection
+	pingGo;
+	#EXIT
+	StartInstall;
+	EXIT=1;
+done;
+# CHECK RETURN VALUE
+echo "Application Exit At : `date`" >> $Logf;
+echo "-" >> $Logf;
+cat $Logf >> $Logh;
+}
+## FUNCTIONS##
+###########################################################################################################################################################################################
+MAIN;
