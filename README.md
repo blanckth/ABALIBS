@@ -1,2 +1,2 @@
 # ABALIBS
-Automation Blanck Arch Linux Installation Bash Script
+Automation Blanck Arch Linux Installation Bash Script Framework
